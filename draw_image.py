@@ -1,91 +1,141 @@
 #!/usr/bin/env python3
-"""Draw the news-image-20261119 entry: a one-page newspaper infographic
-summing up world news of Thursday 19 November 2026.
+"""Render the news-image-20261119 front page.
 
-Output: entry.png, 1024x1024, PNG. Run: python3 draw_image.py
+Draws a one-page newspaper infographic for Thursday 19 November 2026
+with Pillow only: no network access, no external assets, no randomness.
+Running this file regenerates entry.png next to it; main.py then copies
+that file to the output directory.
 """
 import os
 
 from PIL import Image, ImageDraw, ImageFont
 
-W, H = 1024, 1024
-PAPER = (247, 243, 233)      # warm newsprint off-white
-INK = (17, 17, 17)           # near-black
-RED = (178, 34, 34)          # lead-story accent
-GOLD = (201, 162, 39)        # masthead rule
-GREY = (90, 88, 82)          # summary text
-LIGHT_LINE = (205, 199, 186) # hairlines
+PAGE_W, PAGE_H = 1024, 1024
+MARGIN = 46
+NEWS_BG = (248, 244, 234)
+DARK = (16, 16, 16)
+ACCENT = (172, 32, 32)
+BRASS = (198, 158, 40)
+MUTED = (96, 93, 86)
+RULE = (208, 201, 188)
 
-SERIF_B = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
-SANS_B = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-SANS = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+SERIF = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
+SANSB = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+SANSR = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
 
-def font(path, size):
+def load(path, size):
+    """Load a TrueType face at the given point size."""
     return ImageFont.truetype(path, size)
 
 
-def wrap(draw, text, fnt, max_w):
-    """Greedy word wrap returning a list of lines that fit max_w."""
-    words, lines, cur = text.split(), [], ""
-    for word in words:
-        trial = (cur + " " + word).strip()
-        if draw.textlength(trial, font=fnt) <= max_w:
-            cur = trial
+def split_lines(canvas, text, face, width):
+    """Greedy word wrap: lines that each fit inside width."""
+    out, current = [], ""
+    for piece in text.split():
+        trial = f"{current} {piece}".strip()
+        if canvas.textlength(trial, font=face) <= width:
+            current = trial
         else:
-            if cur:
-                lines.append(cur)
-            cur = word
-    if cur:
-        lines.append(cur)
-    return lines
+            out.append(current)
+            current = piece
+    if current:
+        out.append(current)
+    return out
 
 
-def draw_center(draw, cx, y, text, fnt, fill):
-    draw.text((cx - draw.textlength(text, font=fnt) / 2, y), text,
-              font=fnt, fill=fill)
+def centred(canvas, cx, top, text, face, colour):
+    """Draw text centred on cx at the given top edge."""
+    canvas.text((cx - canvas.textlength(text, font=face) / 2, top),
+                text, font=face, fill=colour)
 
 
-def main():
-    img = Image.new("RGB", (W, H), PAPER)
-    d = ImageDraw.Draw(img)
+def banner(canvas):
+    """Black masthead with the paper name and the day it sums up."""
+    canvas.rectangle([0, 0, PAGE_W, 138], fill=DARK)
+    centred(canvas, PAGE_W // 2, 10, "WORLD NEWS", load(SERIF, 76),
+            (255, 255, 255))
+    centred(canvas, PAGE_W // 2, 96,
+            "T H U R S D A Y ,  1 9  N O V E M B E R  2 0 2 6",
+            load(SANSB, 23), BRASS)
+    canvas.rectangle([0, 138, PAGE_W, 144], fill=BRASS)
 
-    # ---- Masthead -------------------------------------------------------
-    d.rectangle([0, 0, W, 140], fill=INK)
-    draw_center(d, W // 2, 12, "WORLD NEWS", font(SERIF_B, 78), (255, 255, 255))
-    draw_center(d, W // 2, 100, "T H U R S D A Y ,  1 9  N O V E M B E R  2 0 2 6",
-                font(SANS_B, 24), GOLD)
-    d.rectangle([0, 140, W, 146], fill=GOLD)
 
-    # ---- Lead story: Trump-Xi-Putin trilateral --------------------------
-    y = 162
-    d.text((48, y), "DIPLOMACY  •  LEAD STORY", font=font(SANS_B, 23), fill=RED)
-    y += 34
-    d.text((48, y), "TRUMP, XI & PUTIN", font=font(SERIF_B, 50), fill=INK)
-    y += 56
-    d.text((48, y), "MEET IN SHENZHEN", font=font(SERIF_B, 50), fill=INK)
-    y += 68
-    lead_sum = ("Historic three-way summit at APEC: nuclear arms, "
-                "Ukraine and Iran on the table.")
-    for line in wrap(d, lead_sum, font(SANS, 26), 600):
-        d.text((48, y), line, font=font(SANS, 26), fill=(40, 40, 40))
-        y += 34
-    # Three leader medallions beside the summary
-    bx, by = 700, 228
-    for i, (initial, name) in enumerate(
-            [("T", "TRUMP"), ("X", "XI"), ("P", "PUTIN")]):
-        cx = bx + i * 86 + 40
-        d.ellipse([cx - 38, by, cx + 38, by + 76], fill=INK)
-        draw_center(d, cx, by + 14, initial, font(SERIF_B, 44),
-                    (255, 255, 255))
-        draw_center(d, cx, by + 84, name, font(SANS_B, 17), INK)
-    d.text((700, by + 116), "FIRST-EVER", font=font(SANS_B, 18), fill=RED)
-    d.text((700, by + 140), "TRILATERAL", font=font(SANS_B, 18), fill=RED)
-    y = max(y + 16, by + 172)
-    d.line([48, y, W - 48, y], fill=INK, width=3)
-    y += 16
+def lead_block(canvas, top):
+    """The lead story: the Shenzhen trilateral, with leader medallions."""
+    canvas.text((MARGIN, top), "DIPLOMACY  •  LEAD STORY",
+                font=load(SANSB, 22), fill=ACCENT)
+    head_top = top + 32
+    canvas.text((MARGIN, head_top), "TRUMP, XI & PUTIN",
+                font=load(SERIF, 50), fill=DARK)
+    canvas.text((MARGIN, head_top + 56), "MEET IN SHENZHEN",
+                font=load(SERIF, 50), fill=DARK)
+    body = ("Historic three-way summit at APEC: nuclear arms, "
+            "Ukraine and Iran on the table.")
+    line_top = head_top + 124
+    for line in split_lines(canvas, body, load(SANSR, 25), 600):
+        canvas.text((MARGIN, line_top), line, font=load(SANSR, 25),
+                    fill=(42, 42, 42))
+        line_top += 33
+    # Three medallions, one per leader, at the right of the headline.
+    leaders = [("T", "TRUMP"), ("X", "XI"), ("P", "PUTIN")]
+    disc_top = head_top + 66
+    for i, (initial, name) in enumerate(leaders):
+        cx = 742 + i * 88
+        canvas.ellipse([cx - 37, disc_top, cx + 37, disc_top + 74],
+                       fill=DARK)
+        centred(canvas, cx, disc_top + 13, initial, load(SERIF, 42),
+                (255, 255, 255))
+        centred(canvas, cx, disc_top + 82, name, load(SANSB, 16), DARK)
+    centred(canvas, 830, disc_top + 114, "FIRST-EVER",
+            load(SANSB, 17), ACCENT)
+    centred(canvas, 830, disc_top + 138, "TRILATERAL",
+            load(SANSB, 17), ACCENT)
+    rule_top = max(line_top + 14, disc_top + 170)
+    canvas.line([MARGIN, rule_top, PAGE_W - MARGIN, rule_top],
+                fill=DARK, width=3)
+    return rule_top + 15
 
-    # ---- The other five stories ------------------------------------------
+
+def story_block(canvas, top, number, title, summary):
+    """One numbered story: badge, headline, one-line summary, hairline."""
+    canvas.rectangle([MARGIN, top + 2, MARGIN + 40, top + 42], fill=DARK)
+    centred(canvas, MARGIN + 20, top + 6, number, load(SANSB, 27),
+            (255, 255, 255))
+    text_x = MARGIN + 60
+    head_lines = split_lines(canvas, title, load(SERIF, 30),
+                             PAGE_W - text_x - MARGIN)
+    line_top = top
+    for line in head_lines[:2]:
+        canvas.text((text_x, line_top), line, font=load(SERIF, 30),
+                    fill=DARK)
+        line_top += 37
+    sum_top = line_top + 2
+    for line in split_lines(canvas, summary, load(SANSR, 22),
+                            PAGE_W - text_x - MARGIN):
+        canvas.text((text_x, sum_top), line, font=load(SANSR, 22),
+                    fill=MUTED)
+        sum_top += 27
+    next_top = max(sum_top + 10, top + 96)
+    if number != "6":
+        canvas.line([MARGIN, next_top - 6, PAGE_W - MARGIN, next_top - 6],
+                    fill=RULE, width=2)
+    return next_top
+
+
+def footer(canvas):
+    """Black footer strip closing the page."""
+    canvas.rectangle([0, PAGE_H - 46, PAGE_W, PAGE_H], fill=DARK)
+    centred(canvas, PAGE_W // 2, PAGE_H - 37,
+            "SIX STORIES  •  ONE DAY  •  19 NOVEMBER 2026",
+            load(SANSB, 20), (255, 255, 255))
+
+
+def render():
+    page = Image.new("RGB", (PAGE_W, PAGE_H), NEWS_BG)
+    canvas = ImageDraw.Draw(page)
+    banner(canvas)
+    top = lead_block(canvas, 160)
     stories = [
         ("2", "US-IRAN FIRE WIDENS",
          "Iran hits US sites in Kuwait and Bahrain after a US strike on Qeshm Island."),
@@ -98,34 +148,14 @@ def main():
         ("6", "VOYAGER 1 HITS ONE LIGHT-DAY",
          "NASA probe reaches the milestone after nearly 50 years in space."),
     ]
-    for num, head, summ in stories:
-        # number badge
-        d.rectangle([48, y + 2, 88, y + 42], fill=INK)
-        draw_center(d, 68, y + 6, num, font(SANS_B, 28), (255, 255, 255))
-        # headline, wrapped to two lines max
-        hx = 108
-        lines = wrap(d, head, font(SERIF_B, 31), W - hx - 48)
-        hy = y
-        for line in lines[:2]:
-            d.text((hx, hy), line, font=font(SERIF_B, 31), fill=INK)
-            hy += 38
-        sy = y + 38 * len(lines[:2]) + 2
-        for line in wrap(d, summ, font(SANS, 23), W - hx - 48):
-            d.text((hx, sy), line, font=font(SANS, 23), fill=GREY)
-            sy += 28
-        y = max(sy + 10, y + 98)
-        if num != "6":
-            d.line([48, y - 6, W - 48, y - 6], fill=LIGHT_LINE, width=2)
-
-    # ---- Footer ------------------------------------------------------------
-    d.rectangle([0, H - 48, W, H], fill=INK)
-    draw_center(d, W // 2, H - 38, "SIX STORIES  •  ONE DAY  •  19 NOVEMBER 2026",
-                font(SANS_B, 21), (255, 255, 255))
-
-    out = os.path.join(os.path.dirname(os.path.abspath(__file__)), "entry.png")
-    img.save(out, "PNG")
-    print("wrote", out, img.size, os.path.getsize(out), "bytes")
+    for number, title, summary in stories:
+        top = story_block(canvas, top, number, title, summary)
+    footer(canvas)
+    out = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                       "entry.png")
+    page.save(out, "PNG")
+    print("wrote", out, page.size, os.path.getsize(out), "bytes")
 
 
 if __name__ == "__main__":
-    main()
+    render()
